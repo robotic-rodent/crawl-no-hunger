@@ -138,12 +138,11 @@ static string _spell_extra_description(spell_type spell, bool viewing)
     // spell name
     desc << chop_string(spell_title(spell), 30);
 
-    // spell power, spell range, hunger level, noise
+    // spell power, spell range, noise
     const string rangestring = spell_range_string(spell);
 
     desc << chop_string(spell_power_string(spell), 13)
          << chop_string(rangestring, 9 + tagged_string_tag_length(rangestring))
-         << chop_string(spell_hunger_string(spell), 8)
          << chop_string(spell_noise_string(spell, 10), 15);
 
     desc << "</" << colour_to_str(highlight) <<">";
@@ -178,7 +177,7 @@ int list_spells(bool toggle_with_I, bool viewing, bool allow_preselect,
                 " " + titlestring + "         Type          "
                 "                Failure  Level",
                 " " + titlestring + "         Power        "
-                "Range    " + "Hunger  " + "Noise          ",
+                "Range    " + "Noise          ",
                 MEL_ITEM);
         me->colour = BLUE;
         spell_menu.add_entry(me);
@@ -189,7 +188,7 @@ int list_spells(bool toggle_with_I, bool viewing, bool allow_preselect,
             " " + titlestring + "         Type          "
             "                Failure  Level",
             " " + titlestring + "         Power        "
-            "Range    " + "Hunger  " + "Noise          ",
+            "Range    " + "Noise          ",
             MEL_TITLE));
 #endif
     spell_menu.set_highlighter(nullptr);
@@ -629,13 +628,6 @@ static bool _can_cast()
         return false;
     }
 
-    if (!you.undead_state() && !you_foodless()
-        && you.hunger_state <= HS_STARVING)
-    {
-        canned_msg(MSG_NO_ENERGY);
-        return false;
-    }
-
     return true;
 }
 
@@ -802,14 +794,6 @@ bool cast_a_spell(bool check_range, spell_type spell)
         return false;
     }
 
-    if (you.undead_state() == US_ALIVE && !you_foodless()
-        && you.hunger <= spell_hunger(spell))
-    {
-        canned_msg(MSG_NO_ENERGY);
-        crawl_state.zero_turns_taken();
-        return false;
-    }
-
     // This needs more work: there are spells which are hated but allowed if
     // they don't have a certain effect. You may use Poison Arrow on those
     // immune, use Mephitic Cloud to shield yourself from other clouds, and
@@ -831,7 +815,6 @@ bool cast_a_spell(bool check_range, spell_type spell)
         }
     }
 
-    const bool staff_energy = player_energy();
     you.last_cast_spell = spell;
     // Silently take MP before the spell.
     dec_mp(cost, true);
@@ -864,16 +847,6 @@ bool cast_a_spell(bool check_range, spell_type spell)
     else // Redraw MP
 #endif
         flush_mp();
-
-    if (!staff_energy && you.undead_state() != US_UNDEAD)
-    {
-        const int spellh = spell_hunger(spell);
-        if (calc_hunger(spellh) > 0)
-        {
-            make_hungry(spellh, true, true);
-            learned_something_new(HINT_SPELL_HUNGER);
-        }
-    }
 
     if (sifcast_amount)
     {
@@ -2135,11 +2108,6 @@ int failure_rate_to_int(int fail)
 string failure_rate_to_string(int fail)
 {
     return make_stringf("%d%%", failure_rate_to_int(fail));
-}
-
-string spell_hunger_string(spell_type spell, bool rod)
-{
-    return hunger_cost_string(spell_hunger(spell, rod));
 }
 
 string spell_noise_string(spell_type spell, int chop_wiz_display_width)

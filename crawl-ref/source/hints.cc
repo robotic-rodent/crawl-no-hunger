@@ -540,6 +540,7 @@ void hints_finished()
     you.save->delete_chunk("tut");
 }
 
+// IDK if this works- XXX
 void hints_dissection_reminder()
 {
     if (!crawl_state.game_is_hints())
@@ -548,9 +549,7 @@ void hints_dissection_reminder()
     if (Hints.hints_just_triggered)
         return;
 
-    // When hungry, give appropriate message
-    if (you.hunger_state < HS_SATIATED)
-        learned_something_new(HINT_MAKE_CHUNKS);
+    learned_something_new(HINT_MAKE_CHUNKS);
 }
 
 static bool _advise_use_healing_potion()

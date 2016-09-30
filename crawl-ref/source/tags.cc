@@ -1355,7 +1355,6 @@ static void tag_construct_you(writer &th)
     ASSERT(you.hp > 0 || you.pending_revival);
     marshallShort(th, you.pending_revival ? 0 : you.hp);
 
-    marshallShort(th, you.hunger);
     marshallBoolean(th, you.fishtail);
     marshallInt(th, you.form);
     CANARY;
@@ -2278,7 +2277,6 @@ static void tag_read_you(reader &th)
 
     you.disease         = unmarshallInt(th);
     you.hp              = unmarshallShort(th);
-    you.hunger          = unmarshallShort(th);
     you.fishtail        = unmarshallBoolean(th);
 #if TAG_MAJOR_VERSION == 34
     if (th.getMinorVersion() < TAG_MINOR_NOME_NO_MORE)
@@ -4326,7 +4324,6 @@ void unmarshallItem(reader &th, item_def &item)
         }
 
         // Make sure no weird fake-rap combinations are produced by the upgrade
-        // from rings of sustenance/hunger with {Stlth} to stealth/loudness
         if (item.base_type == OBJ_JEWELLERY
             && (item.sub_type == RING_STEALTH || item.sub_type == RING_LOUDNESS))
         {

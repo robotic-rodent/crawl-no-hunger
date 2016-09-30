@@ -83,7 +83,6 @@ private:
 
 int interrupt_block::interrupts_blocked = 0;
 
-static void _xom_check_corpse_waste();
 static const char *_activity_interrupt_name(activity_interrupt_type ai);
 
 void push_delay(shared_ptr<Delay> delay)
@@ -189,8 +188,6 @@ bool MacroDelay::try_interrupt()
 static void _interrupt_vampire_feeding(item_def& corpse, int dur)
 {
     mpr("You stop draining the corpse.");
-
-    _xom_check_corpse_waste();
 
     // Don't skeletonize a corpse if it's no longer there!
     if (corpse.defined() && corpse.is_type(OBJ_CORPSES, CORPSE_BODY)
@@ -468,22 +465,13 @@ static bool _can_read_scroll(const item_def& scroll)
     return false;
 }
 
-// Xom is amused by a potential food source going to waste, and is
-// more amused the hungrier you are.
-static void _xom_check_corpse_waste()
-{
-    const int food_need = max(HUNGER_SATIATED - you.hunger, 0);
-    xom_is_stimulated(50 + (151 * food_need / 6000));
-}
-
 static bool _auto_eat()
 {
     return Options.auto_eat_chunks
            && Options.autopickup_on > 0
            && (player_likes_chunks(true)
                || !you.gourmand()
-               || you.duration[DUR_GOURMAND] >= GOURMAND_MAX / 4
-               || you.hunger_state < HS_SATIATED);
+               || you.duration[DUR_GOURMAND] >= GOURMAND_MAX / 4);
 }
 
 void clear_macro_process_key_delay()
@@ -623,9 +611,7 @@ bool FeedVampireDelay::invalidated()
     // * corpse disappears for some reason (e.g. animated by a monster)
     if (!corpse.defined()                                     // missing
         || corpse.base_type != OBJ_CORPSES                    // noncorpse
-        || corpse.pos != you.pos()                            // elsewhere
-        || you.hunger_state == HS_ENGORGED
-        || you.hunger_state > HS_SATIATED && you.form == TRAN_BAT)
+        || corpse.pos != you.pos())                           // elsewhere
     {
         // Messages handled in _food_change() in food.cc.
         _interrupt_vampire_feeding(corpse, duration);
@@ -676,7 +662,6 @@ static bool _check_corpse_gone(item_def& item, const char* action)
     {
         mprf("The corpse has rotted away into a skeleton before "
              "you could %s!", action);
-        _xom_check_corpse_waste();
         return true;
     }
 
@@ -971,13 +956,10 @@ static void _finish_butcher_delay(item_def& corpse, bool bottling)
     // We know the item is valid and a real corpse, because invalidated()
     // checked for that.
     finish_butchering(corpse, bottling);
-    // Don't waste time picking up chunks if you're already
-    // starving. (jpeg)
-    if ((you.hunger_state > HS_STARVING || you.species == SP_VAMPIRE)
-        // Only pick up chunks if this is the last delay...
-        && (you.delay_queue.size() == 1
+    // Only pick up chunks if this is the last delay...
+    if (you.delay_queue.size() == 1
         // ...Or, equivalently, if it's the last butcher one.
-            || !you.delay_queue[1]->is_butcher()))
+            || !you.delay_queue[1]->is_butcher())
     {
         request_autopickup();
     }

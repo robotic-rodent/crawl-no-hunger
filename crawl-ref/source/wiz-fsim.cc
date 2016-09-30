@@ -353,7 +353,6 @@ static fight_data _get_fight_data(monster &mon, int iter_limit, bool defend)
     crawl_state.disables.set(DIS_AFFLICTIONS);
 
     no_messages mx;
-    const int hunger = you.hunger;
 
     const coord_def start_pos = mon.pos();
     const coord_def you_start_pos = you.pos();
@@ -394,7 +393,6 @@ static fight_data _get_fight_data(monster &mon, int iter_limit, bool defend)
                 if (did_hit)
                     hits++;
             }
-            you.hunger = hunger;
             time_taken += you.time_taken * 10;
 
             int damage = (mon.max_hit_points - mon.hit_points);

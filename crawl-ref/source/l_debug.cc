@@ -337,7 +337,6 @@ static const char* disablements[] =
     "mon_act",
     "mon_regen",
     "player_regen",
-    "hunger",
     "death",
     "delay",
     "confirmations",

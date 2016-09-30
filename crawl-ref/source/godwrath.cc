@@ -329,10 +329,8 @@ static bool _zin_retribution()
         }
         break;
     case 3:
-    case 4: // famine
-        simple_god_message(" sends a famine down upon you!", god);
-        make_hungry(you.hunger / 2, false);
-        break;
+    case 4: // famine OF NOISE
+        simple_god_message(" sends a famine of noise down upon you!", god);
     case 5: // noisiness
         simple_god_message(" booms out: \"Turn to the light! REPENT!\"", god);
         noisy(25, you.pos()); // same as scroll of noise

@@ -420,12 +420,7 @@ string describe_mutations(bool center_title)
 
     if (you.species == SP_VAMPIRE)
     {
-        if (you.hunger_state <= HS_STARVING)
-            result += "<green>You do not heal naturally.</green>\n";
-        else if (you.hunger_state < HS_SATIATED)
-            result += "<green>You heal slowly.</green>\n";
-        else if (you.hunger_state >= HS_FULL)
-            result += "<green>Your natural rate of healing is unusually fast.</green>\n";
+        result += "<green>You do not heal naturally.</green>\n";
     }
 
     if (you.species == SP_OCTOPODE)
@@ -587,30 +582,11 @@ static void _display_vampire_attributes()
          "berserk              ", "yes        ", "yes        ", "no         ", "no    "}
     };
 
-    int current = 0;
-    switch (you.hunger_state)
-    {
-    case HS_ENGORGED:
-    case HS_VERY_FULL:
-    case HS_FULL:
-        current = 1;
-        break;
-    case HS_SATIATED:
-        current = 2;
-        break;
-    case HS_HUNGRY:
-    case HS_VERY_HUNGRY:
-    case HS_NEAR_STARVING:
-        current = 3;
-        break;
-    case HS_STARVING:
-    case HS_FAINTING:
-        current = 4;
-    }
+    int current = 4; // pretend nutrition exists
 
     for (int y = 0; y < lines; y++)  // lines   (properties)
     {
-        for (int x = 0; x < 5; x++)  // columns (hunger states)
+        for (int x = 0; x < 5; x++)  // columns (satiation states)
         {
             if (y > 0 && x == current)
                 result += "<w>";

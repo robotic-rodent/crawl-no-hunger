@@ -144,7 +144,6 @@ static bool _fill_inf_from_ddef(duration_type dur, status_info* inf)
 
 static void _describe_airborne(status_info* inf);
 static void _describe_glow(status_info* inf);
-static void _describe_hunger(status_info* inf);
 static void _describe_regen(status_info* inf);
 static void _describe_rotting(status_info* inf);
 static void _describe_sickness(status_info* inf);
@@ -260,10 +259,6 @@ bool fill_status_info(int status, status_info* inf)
             inf->short_text   = "held";
             inf->long_text    = make_stringf("You are %s.", held_status());
         }
-        break;
-
-    case STATUS_HUNGER:
-        _describe_hunger(inf);
         break;
 
     case STATUS_REGENERATION:
@@ -677,52 +672,6 @@ bool fill_status_info(int status, status_info* inf)
     return true;
 }
 
-static void _describe_hunger(status_info* inf)
-{
-    const bool vamp = (you.species == SP_VAMPIRE);
-
-    switch (you.hunger_state)
-    {
-    case HS_ENGORGED:
-        inf->light_colour = (vamp ? GREEN : LIGHTGREEN);
-        inf->light_text   = (vamp ? "Alive" : "Engorged");
-        break;
-    case HS_VERY_FULL:
-        inf->light_colour = GREEN;
-        inf->light_text   = "Very Full";
-        break;
-    case HS_FULL:
-        inf->light_colour = GREEN;
-        inf->light_text   = "Full";
-        break;
-    case HS_HUNGRY:
-        inf->light_colour = YELLOW;
-        inf->light_text   = (vamp ? "Thirsty" : "Hungry");
-        break;
-    case HS_VERY_HUNGRY:
-        inf->light_colour = YELLOW;
-        inf->light_text   = (vamp ? "Very Thirsty" : "Very Hungry");
-        break;
-    case HS_NEAR_STARVING:
-        inf->light_colour = YELLOW;
-        inf->light_text   = (vamp ? "Near Bloodless" : "Near Starving");
-        break;
-    case HS_STARVING:
-        inf->light_colour = LIGHTRED;
-        inf->light_text   = (vamp ? "Bloodless" : "Starving");
-        inf->short_text   = (vamp ? "bloodless" : "starving");
-        break;
-    case HS_FAINTING:
-        inf->light_colour = RED;
-        inf->light_text   = (vamp ? "Bloodless" : "Fainting");
-        inf->short_text   = (vamp ? "bloodless" : "fainting");
-        break;
-    case HS_SATIATED: // no status light
-    default:
-        break;
-    }
-}
-
 static void _describe_glow(status_info* inf)
 {
     const int signed_cont = get_contamination_level();
@@ -761,9 +710,9 @@ static void _describe_regen(status_info* inf)
     const bool regen = (you.duration[DUR_REGENERATION] > 0
                         || you.duration[DUR_TROGS_HAND] > 0);
     const bool no_heal = !player_regenerates_hp();
-    // Does vampire hunger level affect regeneration rate significantly?
+    // Does vampire blood level affect regeneration rate significantly?
     const bool vampmod = !no_heal && !regen && you.species == SP_VAMPIRE
-                         && you.hunger_state != HS_SATIATED;
+                         && false;
 
     if (regen)
     {
@@ -801,7 +750,7 @@ static void _describe_regen(status_info* inf)
         else
             inf->short_text = "regenerating";
 
-        if (you.hunger_state < HS_SATIATED)
+        if (false)
             inf->short_text += " slowly";
         else
             inf->short_text += " quickly";
@@ -872,23 +821,13 @@ static void _describe_airborne(status_info* inf)
     _mark_expiring(inf, expiring);
 }
 
+// This is probably vestigial
 static void _describe_rotting(status_info* inf)
 {
     if (you.species == SP_GHOUL)
     {
         inf->short_text = "rotting";
-        inf->long_text = "Your flesh is rotting";
-        int rot = 1 + (1 << max(0, HS_SATIATED - you.hunger_state));
-        if (rot > 15)
-            inf->long_text += " before your eyes";
-        else if (rot > 8)
-            inf->long_text += " away quickly";
-        else if (rot > 4)
-            inf->long_text += " badly";
-        else if (rot > 2)
-            inf->long_text += " faster than usual";
-        else
-            inf->long_text += " at the usual pace";
+        inf->long_text = "Your flesh is rotting at the usual pace";
         inf->long_text += ".";
     }
 }

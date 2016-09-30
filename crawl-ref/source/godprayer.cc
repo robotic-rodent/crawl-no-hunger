@@ -314,8 +314,6 @@ static slurp_gain _sacrifice_one_item_noncount(const item_def& item)
         && x_chance_in_y(you.piety, MAX_PIETY)
         && !you_foodless())
     {
-        //same as a sultana
-        lessen_hunger(70, true);
         gain.jiyva_bonus |= JS_FOOD;
     }
 

@@ -1940,9 +1940,6 @@ static bool _animate_dead_okay(spell_type spell)
         return false;
     }
 
-    if (you.hunger_state < HS_SATIATED && you.mutation[MUT_HERBIVOROUS] < 3)
-        return false;
-
     if (god_hates_spell(spell, you.religion))
         return false;
 
@@ -1976,8 +1973,7 @@ static bool _foe_should_res_negative_energy(const actor* foe)
             // partial resistance.
             return false;
         case US_SEMI_UNDEAD:
-            // Non-bloodless vampires do not appear immune.
-            return you.hunger_state <= HS_STARVING;
+            return true;
         default:
             return true;
         }

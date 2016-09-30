@@ -1152,17 +1152,7 @@ int player_regen()
     // to heal.
     rr = max(1, rr);
 
-    // Healing depending on satiation.
-    // The better-fed you are, the faster you heal.
-    if (you.species == SP_VAMPIRE)
-    {
-        if (you.hunger_state <= HS_STARVING)
-            rr = 0;   // No regeneration for starving vampires.
-        else if (you.hunger_state < HS_SATIATED)
-            rr /= 2;  // Halved regeneration for hungry vampires.
-        else if (you.hunger_state >= HS_FULL)
-            rr += 20; // Bonus regeneration for full vampires.
-    }
+    // Vampires used to have special healing. No more.
 #if TAG_MAJOR_VERSION == 34
 
     // Compared to other races, a starting djinni would have regen of 4 (hp)
@@ -1228,72 +1218,6 @@ void update_mana_regen_amulet_attunement()
     }
     else
         you.props[MANA_REGEN_AMULET_ACTIVE] = 0;
-}
-
-int player_hunger_rate(bool temp)
-{
-    int hunger = 3;
-
-    if (you.species == SP_TROLL)
-        hunger += 3;            // in addition to the +3 for fast metabolism
-
-    if (temp
-        && (you.duration[DUR_REGENERATION]
-            || you.duration[DUR_TROGS_HAND])
-        && you.hp < you.hp_max)
-    {
-        hunger += 4;
-    }
-
-    if (temp)
-    {
-        if (you.duration[DUR_INVIS])
-            hunger += 5;
-
-        // Berserk has its own food penalty - excluding berserk haste.
-        // Doubling the hunger cost for haste so that the per turn hunger
-        // is consistent now that a hasted turn causes 50% the normal hunger
-        // -cao
-        if (you.duration[DUR_HASTE])
-            hunger += haste_mul(5);
-    }
-
-    if (you.species == SP_VAMPIRE)
-    {
-        switch (you.hunger_state)
-        {
-        case HS_FAINTING:
-        case HS_STARVING:
-            hunger -= 3;
-            break;
-        case HS_NEAR_STARVING:
-        case HS_VERY_HUNGRY:
-        case HS_HUNGRY:
-            hunger--;
-            break;
-        case HS_SATIATED:
-            break;
-        case HS_FULL:
-        case HS_VERY_FULL:
-        case HS_ENGORGED:
-            hunger += 2;
-            break;
-        }
-    }
-    else
-    {
-        hunger += player_mutation_level(MUT_FAST_METABOLISM)
-                - player_mutation_level(MUT_SLOW_METABOLISM);
-    }
-
-    // If Cheibriados has slowed your life processes, you will hunger less.
-    if (have_passive(passive_t::slow_metabolism))
-        hunger /= 2;
-
-    if (hunger < 1)
-        hunger = 1;
-
-    return hunger;
 }
 
 int player_spell_levels()
@@ -1466,10 +1390,7 @@ int player_res_cold(bool calc_unid, bool temp, bool items)
 
         if (you.species == SP_VAMPIRE)
         {
-            if (you.hunger_state <= HS_STARVING)
-                rc += 2;
-            else if (you.hunger_state < HS_SATIATED)
-                rc++;
+            rc += 2;
         }
 
 #if TAG_MAJOR_VERSION == 34
@@ -1627,7 +1548,7 @@ bool player_res_torment(bool random)
     }
 
     return get_form()->res_neg() == 3
-           || you.species == SP_VAMPIRE && you.hunger_state <= HS_STARVING
+           || you.species == SP_VAMPIRE
            || you.petrified()
 #if TAG_MAJOR_VERSION == 34
            || player_equip_unrand(UNRAND_ETERNAL_TORMENT)
@@ -1654,7 +1575,6 @@ int player_res_poison(bool calc_unid, bool temp, bool items)
         case US_UNDEAD: // mummies & lichform
             return 3;
         case US_SEMI_UNDEAD: // vampire
-            if (you.hunger_state <= HS_STARVING) // XXX: && temp?
                 return 3;
             break;
     }
@@ -1699,7 +1619,7 @@ int player_res_poison(bool calc_unid, bool temp, bool items)
 
     // Only thirsty vampires are naturally poison resistant.
     // XXX: && temp?
-    if (you.species == SP_VAMPIRE && you.hunger_state < HS_SATIATED)
+    if (you.species == SP_VAMPIRE)
         rp++;
 
     if (temp)
@@ -1897,30 +1817,6 @@ int player_energy()
 int player_prot_life(bool calc_unid, bool temp, bool items)
 {
     int pl = 0;
-
-    // Hunger is temporary, true, but that's something you can control,
-    // especially as life protection only increases the hungrier you
-    // get.
-    if (you.species == SP_VAMPIRE)
-    {
-        switch (you.hunger_state)
-        {
-        case HS_FAINTING:
-        case HS_STARVING:
-            pl = 3;
-            break;
-        case HS_NEAR_STARVING:
-        case HS_VERY_HUNGRY:
-        case HS_HUNGRY:
-            pl = 2;
-            break;
-        case HS_SATIATED:
-            pl = 1;
-            break;
-        default:
-            break;
-        }
-    }
 
     // Same here. Your piety status, and, hence, TSO's protection, is
     // something you can more or less control.
@@ -2915,16 +2811,8 @@ void level_change(bool skip_attribute_increase)
             case SP_VAMPIRE:
                 if (you.experience_level == 3)
                 {
-                    if (you.hunger_state > HS_SATIATED)
-                    {
-                        mprf(MSGCH_INTRINSIC_GAIN, "If you weren't so full, "
-                             "you could now transform into a vampire bat.");
-                    }
-                    else
-                    {
-                        mprf(MSGCH_INTRINSIC_GAIN,
-                             "You can now transform into a vampire bat.");
-                    }
+                    mprf(MSGCH_INTRINSIC_GAIN,
+                         "You can now transform into a vampire bat.");
                 }
                 break;
 
@@ -3161,26 +3049,7 @@ static int _stealth_mod()
     int species_stealth_mod = species_stealth_modifier(you.species);
     if (you.form == TRAN_STATUE)
         species_stealth_mod -= 3;
-    // Thirsty vampires are (much) more stealthy
-    if (you.species == SP_VAMPIRE)
-    {
-        switch (you.hunger_state)
-        {
-        case HS_FAINTING:
-        case HS_STARVING:
-            species_stealth_mod += 3;
-            break;
 
-        case HS_NEAR_STARVING:
-        case HS_VERY_HUNGRY:
-        case HS_HUNGRY:
-            species_stealth_mod += 1;
-            break;
-
-        default:
-            break;
-        }
-    }
     return species_stealth_mod;
 }
 
@@ -3371,40 +3240,18 @@ static void _display_char_status(int value, const char *fmt, ...)
     va_end(argp);
 }
 
+// I have no clue how much of this is accurate.
+// Vamps should just be removed.
 static void _display_vampire_status()
 {
-    string msg = "At your current hunger state you ";
+    string msg = "At your current satiation state you ";
     vector<const char *> attrib;
 
-    switch (you.hunger_state)
-    {
-        case HS_FAINTING:
-        case HS_STARVING:
-            attrib.push_back("are immune to poison");
-            attrib.push_back("significantly resist cold");
-            attrib.push_back("are immune to negative energy");
-            attrib.push_back("resist torment");
-            attrib.push_back("do not heal.");
-            break;
-        case HS_NEAR_STARVING:
-        case HS_VERY_HUNGRY:
-        case HS_HUNGRY:
-            attrib.push_back("resist poison");
-            attrib.push_back("resist cold");
-            attrib.push_back("significantly resist negative energy");
-            attrib.push_back("have a slow metabolism");
-            attrib.push_back("heal slowly.");
-            break;
-        case HS_SATIATED:
-            attrib.push_back("resist negative energy.");
-            break;
-        case HS_FULL:
-        case HS_VERY_FULL:
-        case HS_ENGORGED:
-            attrib.push_back("have a fast metabolism");
-            attrib.push_back("heal quickly.");
-            break;
-    }
+    attrib.push_back("are immune to poison");
+    attrib.push_back("significantly resist cold");
+    attrib.push_back("are immune to negative energy");
+    attrib.push_back("resist torment");
+    attrib.push_back("do not heal.");
 
     if (!attrib.empty())
     {
@@ -3517,8 +3364,7 @@ static string _constriction_description();
 
 void display_char_status()
 {
-    if (you.undead_state() == US_SEMI_UNDEAD
-        && you.hunger_state == HS_ENGORGED)
+    if (you.undead_state() == US_SEMI_UNDEAD)
     {
         mpr("You feel almost alive.");
     }
@@ -4167,7 +4013,7 @@ bool player_regenerates_hp()
 {
     if (player_mutation_level(MUT_SLOW_REGENERATION) == 3)
         return false;
-    if (you.species == SP_VAMPIRE && you.hunger_state <= HS_STARVING)
+    if (you.species == SP_VAMPIRE)
         return false;
     return true;
 }
@@ -4465,10 +4311,7 @@ void handle_player_poison(int delay)
 
     // Transforming into a form with no metabolism merely suspends the poison
     // but doesn't let your body get rid of it.
-    // Hungry vampires are less affected by poison (not at all when bloodless).
-    if (you.is_nonliving() || you.undead_state()
-        && (you.undead_state() != US_SEMI_UNDEAD
-            || x_chance_in_y(4 - you.hunger_state, 4)))
+    if (you.is_nonliving() || you.undead_state())
     {
         return;
     }
@@ -5181,8 +5024,6 @@ player::player()
     stat_loss.init(0);
     base_stats.init(0);
 
-    hunger          = HUNGER_DEFAULT;
-    hunger_state    = HS_SATIATED;
     disease         = 0;
     max_level       = 1;
     hit_points_regeneration   = 0;
@@ -5384,7 +5225,6 @@ player::player()
     for (int i = 0; i < NUM_SEEDS; i++)
         game_seeds[i] = get_uint32();
 
-    old_hunger          = hunger;
     transit_stair       = DNGN_UNSEEN;
     entering_level      = false;
 
@@ -5644,20 +5484,6 @@ void player::banish(actor* /*agent*/, const string &who, const int power,
     banished    = true;
     banished_by = who;
     banished_power = power;
-}
-
-// For semi-undead species (Vampire!) reduce food cost for spells and abilities
-// to 50% (hungry, very hungry, near starving) or zero (starving).
-int calc_hunger(int food_cost)
-{
-    if (you.undead_state() == US_SEMI_UNDEAD && you.hunger_state < HS_SATIATED)
-    {
-        if (you.hunger_state <= HS_STARVING)
-            return 0;
-
-        return food_cost/2;
-    }
-    return food_cost;
 }
 
 bool player::paralysed() const
@@ -6353,7 +6179,7 @@ int player::res_rotting(bool temp) const
         return 1; // rottable by Zin, not by necromancy
 
     case US_SEMI_UNDEAD:
-        if (temp && hunger_state < HS_SATIATED)
+        if (temp)
             return 1;
         return 0; // no permanent resistance
 
@@ -7260,7 +7086,7 @@ bool player::can_safely_mutate(bool temp) const
 bool player::is_lifeless_undead(bool temp) const
 {
     if (undead_state() == US_SEMI_UNDEAD)
-        return temp ? hunger_state < HS_SATIATED : false;
+        return true;
     else
         return undead_state() != US_ALIVE;
 }
@@ -8609,9 +8435,6 @@ void player_end_berserk()
     Hints.hints_events[HINT_YOU_ENCHANTED] = false;
 
     slow_player(dur);
-
-    make_hungry(BERSERK_NUTRITION, true);
-    you.hunger = max(HUNGER_STARVING - 100, you.hunger);
 
     // 1KB: No berserk healing.
     set_hp((you.hp + 1) * 2 / 3);

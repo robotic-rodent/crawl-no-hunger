@@ -184,7 +184,6 @@ static bool _reaching_weapon_attack(const item_def& wpn)
                     // Let's assume friendlies cooperate.
                     mpr("You could not reach far enough!");
                     you.time_taken = attack_delay;
-                    make_hungry(3, true);
                     return true;
                 }
             }
@@ -205,7 +204,6 @@ static bool _reaching_weapon_attack(const item_def& wpn)
         // of invisible monsters.
         mpr("You attack empty space.");
         you.time_taken = attack_delay;
-        make_hungry(3, true);
         return true;
     }
     else if (!fight_melee(&you, mons))
@@ -216,7 +214,6 @@ static bool _reaching_weapon_attack(const item_def& wpn)
             // a failed attempt to reach further should not be free; instead,
             // charge the same as a successful attempt.
             you.time_taken = attack_delay;
-            make_hungry(3, true);
             you.turn_is_over = true;
         }
         else
@@ -1848,19 +1845,6 @@ static bool _rod_spell(item_def& irod, bool check_range)
     int mana = spell_mana(spell) * ROD_CHARGE_MULT;
     int power = calc_spell_power(spell, false, false, true, true);
 
-    int food = spell_hunger(spell, true);
-
-    if (you.undead_state() == US_UNDEAD)
-        food = 0;
-
-    if (food && (you.hunger_state <= HS_STARVING || you.hunger <= food)
-        && !you.undead_state())
-    {
-        canned_msg(MSG_NO_ENERGY);
-        crawl_state.zero_turns_taken();
-        return false;
-    }
-
     if (spell == SPELL_THUNDERBOLT && you.props.exists("thunderbolt_last")
         && you.props["thunderbolt_last"].get_int() + 1 == you.num_turns)
     {
@@ -1907,7 +1891,6 @@ static bool _rod_spell(item_def& irod, bool check_range)
         return false;
     }
 
-    make_hungry(food, true, true);
     if (ret == SPRET_SUCCESS)
     {
         irod.plus -= mana;
@@ -2054,12 +2037,6 @@ bool evoke_item(int slot, bool check_range)
             return false;
         }
 
-        if (you.undead_state() == US_ALIVE && !you_foodless()
-            && you.hunger_state <= HS_STARVING)
-        {
-            canned_msg(MSG_TOO_HUNGRY);
-            return false;
-        }
         else if (you.magic_points >= you.max_magic_points
 #if TAG_MAJOR_VERSION == 34
                  && (you.species != SP_DJINNI || you.hp == you.hp_max)
@@ -2076,7 +2053,6 @@ bool evoke_item(int slot, bool check_range)
         {
             mpr("You channel some magical energy.");
             inc_mp(1 + random2(3));
-            make_hungry(50, false, true);
             did_work = true;
             practise_evoking(1);
             count_action(CACT_EVOKE, STAFF_ENERGY, OBJ_STAVES);

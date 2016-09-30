@@ -405,7 +405,6 @@ void revive()
 
     you.disease = 0;
     you.magic_contamination = 0;
-    set_hunger(HUNGER_DEFAULT, true);
     restore_stat(STAT_ALL, 0, true);
 
     you.attribute[ATTR_DELAYED_FIREBALL] = 0;

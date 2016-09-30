@@ -42,14 +42,10 @@ static int food_prompt_inventory_menu(lua_State *ls)
 static int food_can_eat(lua_State *ls)
 {
     LUA_ITEM(ls, item, 1);
-    bool hungercheck = true;
-
-    if (lua_isboolean(ls, 2))
-        hungercheck = lua_toboolean(ls, 2);
 
     const bool edible = item && (item->base_type == OBJ_FOOD
                                  || item->base_type == OBJ_CORPSES)
-                             &&  can_eat(*item, true, hungercheck);
+                             &&  can_eat(*item, true, true);
     lua_pushboolean(ls, edible);
     return 1;
 }

@@ -411,12 +411,14 @@ void setup_game(const newgame_def& ng)
     _setup_generic(ng);
 }
 
+// Maybe the following 3 functions should be removed...
+
 /**
  * Special steps that normal game needs;
  */
 static void _setup_normal_game()
 {
-    make_hungry(0, true);
+    // nothing currently
 }
 
 /**
@@ -424,7 +426,7 @@ static void _setup_normal_game()
  */
 static void _setup_tutorial(const newgame_def& ng)
 {
-    make_hungry(0, true);
+    // nothing currently
 }
 
 /**

@@ -704,8 +704,7 @@ static void _decrement_durations()
     }
 
 
-    if (you.duration[DUR_BERSERK]
-        && you.hunger + 100 <= HUNGER_STARVING + BERSERK_NUTRITION)
+    if (you.duration[DUR_BERSERK])
     {
         you.duration[DUR_BERSERK] = 1; // end
     }
@@ -902,11 +901,6 @@ static void _rot_ghoul_players()
     if (have_passive(passive_t::slow_metabolism))
         resilience = resilience * 3 / 2;
 
-
-    // Faster rotting when hungry.
-    if (you.hunger_state < HS_SATIATED)
-        resilience >>= HS_SATIATED - you.hunger_state;
-
     if (one_chance_in(resilience))
     {
         dprf("rot rate: 1/%d", resilience);
@@ -1065,12 +1059,6 @@ void player_reacts()
     if (grd(you.pos()) == DNGN_LAVA)
         maybe_melt_player_enchantments(BEAM_FIRE, you.time_taken);
 
-    // Handle starvation before subtracting hunger for this turn (including
-    // hunger from the berserk duration) and before monsters react, so you
-    // always get a turn (though it may be a delay or macro!) between getting
-    // the Fainting light and actually fainting.
-    handle_starvation();
-
     _decrement_durations();
     _rot_ghoul_players();
 
@@ -1084,11 +1072,6 @@ void player_reacts()
 
     // increment constriction durations
     you.accum_has_constricted();
-
-    const int food_use = div_rand_round(player_hunger_rate() * you.time_taken,
-                                        BASELINE_DELAY);
-    if (food_use > 0 && you.hunger > 0)
-        make_hungry(food_use, true);
 
     _regenerate_hp_and_mp(you.time_taken);
 

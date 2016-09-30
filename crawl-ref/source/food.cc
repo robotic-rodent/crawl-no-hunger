@@ -44,101 +44,8 @@
 #include "xom.h"
 
 static void _eat_chunk(item_def& food);
-static void _describe_food_change(int hunger_increment);
 static bool _vampire_consume_corpse(item_def& corpse);
 static void _heal_from_food(int hp_amt);
-
-void make_hungry(int hunger_amount, bool suppress_msg,
-                 bool magic)
-{
-    if (crawl_state.disables[DIS_HUNGER])
-        return;
-
-#if TAG_MAJOR_VERSION == 34
-    // Lich/tree form djinn don't get exempted from food costs: infinite
-    // healing from channeling would be just too good.
-    if (you.species == SP_DJINNI)
-    {
-        if (!magic)
-            return;
-
-        contaminate_player(hunger_amount * 4 / 3, true);
-        return;
-    }
-#endif
-
-    if (you_foodless())
-        return;
-
-    if (magic)
-        hunger_amount = calc_hunger(hunger_amount);
-
-    if (hunger_amount == 0 && !suppress_msg)
-        return;
-
-    you.hunger -= hunger_amount;
-
-    if (you.hunger < 0)
-        you.hunger = 0;
-
-    // So we don't get two messages, ever.
-    bool state_message = food_change();
-
-    if (!suppress_msg && !state_message)
-        _describe_food_change(-hunger_amount);
-}
-
-// Must match the order of hunger_state_t enums
-static constexpr int hunger_threshold[HS_ENGORGED + 1] =
-{
-    HUNGER_FAINTING, HUNGER_STARVING, HUNGER_NEAR_STARVING, HUNGER_VERY_HUNGRY,
-    HUNGER_HUNGRY, HUNGER_SATIATED, HUNGER_FULL, HUNGER_VERY_FULL,
-    HUNGER_ENGORGED
-};
-
-/**
- * Attempt to reduce the player's hunger.
- *
- * @param satiated_amount       The amount by which to reduce hunger by.
- * @param suppress_msg          Whether to squelch messages about hunger
- *                              decreasing.
- * @param max                   The maximum hunger state which the player may
- *                              reach. If -1, defaults to HUNGER_MAXIMUM.
- */
-void lessen_hunger(int satiated_amount, bool suppress_msg, int max)
-{
-    if (you_foodless())
-        return;
-
-    you.hunger += satiated_amount;
-
-    const hunger_state_t max_hunger_state = max == -1 ? HS_ENGORGED
-                                                      : (hunger_state_t) max;
-    ASSERT_RANGE(max_hunger_state, 0, HS_ENGORGED + 1);
-    const int max_hunger = min(HUNGER_MAXIMUM,
-                               hunger_threshold[max_hunger_state]);
-    if (you.hunger > max_hunger)
-        you.hunger = max_hunger;
-
-    // So we don't get two messages, ever.
-    const bool state_message = food_change();
-
-    if (!suppress_msg && !state_message)
-        _describe_food_change(satiated_amount);
-}
-
-void set_hunger(int new_hunger_level, bool suppress_msg)
-{
-    if (you_foodless())
-        return;
-
-    int hunger_difference = (new_hunger_level - you.hunger);
-
-    if (hunger_difference < 0)
-        make_hungry(-hunger_difference, suppress_msg);
-    else if (hunger_difference > 0)
-        lessen_hunger(hunger_difference, suppress_msg);
-}
 
 bool you_foodless(bool can_eat)
 {
@@ -192,19 +99,6 @@ static bool _eat_check(bool check_hunger = true, bool silent = false)
         return false;
     }
 
-    if (!check_hunger)
-        return true;
-
-    if (you.hunger_state >= HS_ENGORGED)
-    {
-        if (!silent)
-        {
-            mprf("You're too full to %s anything.",
-                 you.species == SP_VAMPIRE ? "drain" : "eat");
-            crawl_state.zero_turns_taken();
-        }
-        return false;
-    }
     return true;
 }
 
@@ -228,167 +122,6 @@ bool eat_food(int slot)
         mpr("There's nothing here to drain!");
 
     return prompt_eat_item(slot);
-}
-
-static string _how_hungry()
-{
-    if (you.hunger_state > HS_SATIATED)
-        return "full";
-    else if (you.species == SP_VAMPIRE)
-        return "thirsty";
-    return "hungry";
-}
-
-// "initial" is true when setting the player's initial hunger state on game
-// start or load: in that case it's not really a change, so we suppress the
-// state change message and don't identify rings or stimulate Xom.
-bool food_change(bool initial)
-{
-    bool state_changed = false;
-    bool less_hungry   = false;
-
-    you.hunger = max(you_min_hunger(), you.hunger);
-    you.hunger = min(you_max_hunger(), you.hunger);
-
-    // Get new hunger state.
-    hunger_state_t newstate = HS_FAINTING;
-    while (newstate < HS_ENGORGED && you.hunger > hunger_threshold[newstate])
-        newstate = (hunger_state_t)(newstate + 1);
-
-    if (newstate != you.hunger_state)
-    {
-        state_changed = true;
-        if (newstate > you.hunger_state)
-            less_hungry = true;
-
-        you.hunger_state = newstate;
-        you.redraw_status_lights = true;
-
-        if (newstate < HS_SATIATED)
-            interrupt_activity(AI_HUNGRY);
-
-        if (you.species == SP_VAMPIRE)
-        {
-            if (you.duration[DUR_BERSERK] > 1 && newstate <= HS_HUNGRY)
-            {
-                mprf(MSGCH_DURATION, "Your blood-deprived body can't sustain "
-                                     "your rage any longer.");
-                you.duration[DUR_BERSERK] = 1;
-            }
-
-            switch (lifeless_prevents_form())
-            {
-            case UFR_TOO_DEAD:
-                if (you.duration[DUR_TRANSFORMATION] > 2 * BASELINE_DELAY)
-                {
-                    mprf(MSGCH_DURATION, "Your blood-deprived body can't sustain "
-                                         "your transformation much longer.");
-                    you.set_duration(DUR_TRANSFORMATION, 2);
-                }
-                break;
-            case UFR_TOO_ALIVE:
-                if (you.duration[DUR_TRANSFORMATION] > 5 * BASELINE_DELAY)
-                {
-                    print_stats();
-                    mprf(MSGCH_WARN, "Your blood-filled body can't sustain your "
-                                     "transformation much longer.");
-
-                    // Give more time because suddenly stopping flying can be fatal.
-                    you.set_duration(DUR_TRANSFORMATION, 5);
-                }
-                break;
-            case UFR_GOOD:
-                if (newstate == HS_ENGORGED && is_vampire_feeding()) // Alive
-                {
-                    print_stats();
-                    mpr("You can't stomach any more blood right now.");
-                }
-            }
-        }
-
-        if (!initial)
-        {
-            string msg = "You ";
-            switch (you.hunger_state)
-            {
-            case HS_FAINTING:
-                msg += "are fainting from starvation!";
-                mprf(MSGCH_FOOD, less_hungry, "%s", msg.c_str());
-                break;
-
-            case HS_STARVING:
-                if (you.species == SP_VAMPIRE)
-                    msg += "feel devoid of blood!";
-                else
-                    msg += "are starving!";
-
-                mprf(MSGCH_FOOD, less_hungry, "%s", msg.c_str());
-
-                learned_something_new(HINT_YOU_STARVING);
-                you.check_awaken(500);
-                break;
-
-            case HS_NEAR_STARVING:
-                if (you.species == SP_VAMPIRE)
-                    msg += "feel almost devoid of blood!";
-                else
-                    msg += "are near starving!";
-
-                mprf(MSGCH_FOOD, less_hungry, "%s", msg.c_str());
-
-                learned_something_new(HINT_YOU_HUNGRY);
-                break;
-
-            case HS_VERY_HUNGRY:
-            case HS_HUNGRY:
-                msg += "are feeling ";
-                if (you.hunger_state == HS_VERY_HUNGRY)
-                    msg += "very ";
-                msg += _how_hungry();
-                msg += ".";
-
-                mprf(MSGCH_FOOD, less_hungry, "%s", msg.c_str());
-
-                learned_something_new(HINT_YOU_HUNGRY);
-                break;
-
-            default:
-                return state_changed;
-            }
-        }
-    }
-
-    return state_changed;
-}
-
-// food_increment is positive for eating, negative for hungering
-static void _describe_food_change(int food_increment)
-{
-    const int magnitude = abs(food_increment);
-    string msg;
-
-    if (magnitude == 0)
-        return;
-
-    msg = "You feel ";
-
-    if (magnitude <= 100)
-        msg += "slightly ";
-    else if (magnitude <= 350)
-        msg += "somewhat ";
-    else if (magnitude <= 800)
-        msg += "quite a bit ";
-    else
-        msg += "a lot ";
-
-    if ((you.hunger_state > HS_SATIATED) ^ (food_increment < 0))
-        msg += "more ";
-    else
-        msg += "less ";
-
-    msg += _how_hungry().c_str();
-    msg += ".";
-    mpr(msg);
 }
 
 bool eat_item(item_def &food)
@@ -514,7 +247,6 @@ void finish_eating_item(item_def& food)
     {
         int value = food_value(food);
         ASSERT(value > 0);
-        lessen_hunger(value, true);
         _finished_eating_message(static_cast<food_type>(food.sub_type));
     }
 
@@ -572,8 +304,7 @@ int prompt_eat_chunks(bool only_auto)
 
     // If we *know* the player can eat chunks, doesn't have the gourmand
     // effect and isn't hungry, don't prompt for chunks.
-    if (you.species != SP_VAMPIRE
-        && you.hunger_state >= HS_SATIATED + player_likes_chunks())
+    if (you.species != SP_VAMPIRE)
     {
         return 0;
     }
@@ -718,55 +449,6 @@ static const char *_chunk_flavour_phrase(bool likes_chunks)
     return phrase;
 }
 
-static void _chunk_nutrition_message(int nutrition)
-{
-    int perc_nutrition = nutrition * 100 / CHUNK_BASE_NUTRITION;
-    if (perc_nutrition < 15)
-        mpr("That was extremely unsatisfying.");
-    else if (perc_nutrition < 35)
-        mpr("That was not very filling.");
-}
-
-static int _apply_herbivore_nutrition_effects(int nutrition)
-{
-    int how_herbivorous = player_mutation_level(MUT_HERBIVOROUS);
-
-    while (how_herbivorous--)
-        nutrition = nutrition * 75 / 100;
-
-    return nutrition;
-}
-
-static int _apply_gourmand_nutrition_effects(int nutrition, int gourmand)
-{
-    return nutrition * (gourmand + GOURMAND_NUTRITION_BASE)
-                     / (GOURMAND_MAX + GOURMAND_NUTRITION_BASE);
-}
-
-static int _chunk_nutrition(int likes_chunks)
-{
-    int nutrition = CHUNK_BASE_NUTRITION;
-
-    if (you.hunger_state < HS_SATIATED + likes_chunks)
-    {
-        return likes_chunks ? nutrition
-                            : _apply_herbivore_nutrition_effects(nutrition);
-    }
-
-    const int gourmand = you.gourmand() ? you.duration[DUR_GOURMAND] : 0;
-    const int effective_nutrition =
-        _apply_gourmand_nutrition_effects(nutrition, gourmand);
-
-#ifdef DEBUG_DIAGNOSTICS
-    const int epercent = effective_nutrition * 100 / nutrition;
-    mprf(MSGCH_DIAGNOSTICS,
-            "Gourmand factor: %d, chunk base: %d, effective: %d, %%: %d",
-                gourmand, nutrition, effective_nutrition, epercent);
-#endif
-
-    return _apply_herbivore_nutrition_effects(effective_nutrition);
-}
-
 /**
  * How intelligent was the monster that the given corpse came from?
  *
@@ -794,9 +476,6 @@ static void _eat_chunk(item_def& food)
     const corpse_effect_type chunk_effect = determine_chunk_effect(food);
 
     int likes_chunks  = player_likes_chunks(true);
-    int nutrition     = _chunk_nutrition(likes_chunks);
-    bool suppress_msg = false; // do we display the chunk nutrition message?
-    bool do_eat       = false;
 
     switch (chunk_effect)
     {
@@ -811,13 +490,11 @@ static void _eat_chunk(item_def& food)
     {
         if (you.species == SP_GHOUL)
         {
-            suppress_msg = true;
             const int hp_amt = 1 + random2avg(5 + you.experience_level, 3);
             _heal_from_food(hp_amt);
         }
 
         mprf("This raw flesh %s", _chunk_flavour_phrase(likes_chunks));
-        do_eat = true;
         break;
     }
 
@@ -826,72 +503,11 @@ static void _eat_chunk(item_def& food)
         mprf(MSGCH_ERROR, "This flesh (%d) tastes buggy!", chunk_effect);
         break;
     }
-
-    if (do_eat)
-    {
-        dprf("nutrition: %d", nutrition);
-        lessen_hunger(nutrition, true);
-        if (!suppress_msg)
-            _chunk_nutrition_message(nutrition);
-    }
 }
-
-// Divide full nutrition by duration, so that each turn you get the same
-// amount of nutrition. Also, experimentally regenerate 1 hp per feeding turn
-// - this is likely too strong.
-// feeding is -1 at start, 1 when finishing, and 0 else
-
-// Here are some values for nutrition (quantity * 1000) and duration:
-//    max_chunks      quantity    duration
-//     1               1           1
-//     2               1           1
-//     3               1           2
-//     4               1           2
-//     5               1           2
-//     6               2           3
-//     7               2           3
-//     8               2           3
-//     9               2           4
-//    10               2           4
-//    12               3           5
-//    15               3           5
-//    20               4           6
-//    25               4           6
-//    30               5           7
 
 void vampire_nutrition_per_turn(const item_def &corpse, int feeding)
 {
-    const monster_type mons_type = corpse.mon_type;
-
-    // Duration depends on corpse weight.
-    const int max_chunks = max_corpse_chunks(mons_type);
-    const int chunk_amount = stepdown_value(1 + max_chunks/3, 6, 6, 12, 12);
-
-    // Add 1 for the artificial extra call at the start of draining.
-    const int duration   = 1 + chunk_amount;
-
-    // Use number of potions per corpse to calculate total nutrition, which
-    // then gets distributed over the entire duration.
-    int food_value = CHUNK_BASE_NUTRITION
-                     * num_blood_potions_from_corpse(mons_type);
-
-    bool start_feeding   = false;
-    bool end_feeding     = false;
-
-    if (feeding < 0)
-        start_feeding = true;
-    else if (feeding > 0)
-        end_feeding = true;
-
-    if (start_feeding)
-    {
-        mprf("This %sblood tastes delicious!",
-             mons_class_flag(mons_type, M_WARM_BLOOD) ? "warm "
-                                                      : "");
-    }
-
-    if (!end_feeding)
-        lessen_hunger(food_value / duration, !start_feeding);
+    mprf("Sblood, just remove me already!");
 }
 
 bool is_bad_food(const item_def &food)
@@ -1066,7 +682,6 @@ bool can_eat(const item_def &food, bool suppress_msg, bool check_hunger)
         else if (food.sub_type == FOOD_CHUNK)
         {
             if (!check_hunger
-                || you.hunger_state < HS_SATIATED
                 || player_likes_chunks())
             {
                 return true;
@@ -1163,105 +778,4 @@ static void _heal_from_food(int hp_amt)
 
     calc_hp();
     calc_mp();
-}
-
-int you_max_hunger()
-{
-    if (you_foodless())
-        return HUNGER_DEFAULT;
-
-    // Ghouls can never be full or above.
-    if (you.species == SP_GHOUL)
-        return hunger_threshold[HS_SATIATED];
-
-    return hunger_threshold[HS_ENGORGED];
-}
-
-int you_min_hunger()
-{
-    // This case shouldn't actually happen.
-    if (you_foodless())
-        return HUNGER_DEFAULT;
-
-    // Vampires can never starve to death. Ghouls will just rot much faster.
-    if (you.undead_state() != US_ALIVE)
-        return (HUNGER_FAINTING + HUNGER_STARVING) / 2; // midpoint
-
-    return 0;
-}
-
-void handle_starvation()
-{
-    // Don't faint or die while eating.
-    if (current_delay() && current_delay()->is_being_used(nullptr, OPER_EAT))
-        return;
-
-    if (!you_foodless() && you.hunger <= HUNGER_FAINTING)
-    {
-        if (!you.cannot_act() && one_chance_in(40))
-        {
-            mprf(MSGCH_FOOD, "You lose consciousness!");
-            stop_running();
-
-            int turns = 5 + random2(8);
-            if (!you.duration[DUR_PARALYSIS])
-                take_note(Note(NOTE_PARALYSIS, min(turns, 13), 0, "fainting"));
-            you.increase_duration(DUR_PARALYSIS, turns, 13);
-            if (you_worship(GOD_XOM))
-                xom_is_stimulated(get_tension() > 0 ? 200 : 100);
-        }
-
-        if (you.hunger <= 0 && !you.duration[DUR_DEATHS_DOOR])
-        {
-            auto it = min_element(begin(you.inv), end(you.inv),
-                [](const item_def& a, const item_def& b) -> bool
-                {
-                    return (a.base_type == OBJ_FOOD && can_eat(a, true)
-                                ? food_turns(a) : INT_MAX)
-                        < (b.base_type == OBJ_FOOD && can_eat(b, true)
-                                ? food_turns(b) : INT_MAX);
-                });
-            if (it != end(you.inv)
-                && it->base_type == OBJ_FOOD && can_eat(*it, true))
-            {
-                mpr("As you are about to starve, you manage to eat something.");
-                eat_item(*it);
-                return;
-            }
-
-            mprf(MSGCH_FOOD, "You have starved to death.");
-            ouch(INSTANT_DEATH, KILLED_BY_STARVATION);
-            if (!you.pending_revival) // if we're still here...
-                set_hunger(HUNGER_DEFAULT, true);
-        }
-    }
-}
-
-static const int hunger_breakpoints[] = { 1, 21, 61, 121, 201, 301, 421 };
-
-int hunger_bars(const int hunger)
-{
-    return breakpoint_rank(hunger, hunger_breakpoints,
-                           ARRAYSZ(hunger_breakpoints));
-}
-
-string hunger_cost_string(const int hunger)
-{
-    if (you_foodless(true))
-        return "N/A";
-
-#ifdef WIZARD
-    if (you.wizard)
-        return to_string(hunger);
-#endif
-
-    const int numbars = hunger_bars(hunger);
-
-    if (numbars > 0)
-    {
-        return string(numbars, '#')
-               + string(ARRAYSZ(hunger_breakpoints) - numbars, '.');
-    }
-    else
-        return "None";
 }

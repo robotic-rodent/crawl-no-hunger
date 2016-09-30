@@ -459,14 +459,6 @@ item_def *player::shield() const
     return slot_item(EQ_SHIELD, false);
 }
 
-void player::make_hungry(int hunger_increase, bool silent)
-{
-    if (hunger_increase > 0)
-        ::make_hungry(hunger_increase, silent);
-    else if (hunger_increase < 0)
-        ::lessen_hunger(-hunger_increase, silent);
-}
-
 string player::name(description_level_type dt, bool, bool) const
 {
     switch (dt)
@@ -805,7 +797,6 @@ bool player::can_go_berserk() const
 bool player::can_go_berserk(bool intentional, bool potion, bool quiet,
                             string *reason) const
 {
-    COMPILE_CHECK(HUNGER_STARVING - 100 + BERSERK_NUTRITION < HUNGER_VERY_HUNGRY);
     const bool verbose = (intentional || potion) && !quiet;
     string msg;
     bool success = false;
@@ -832,8 +823,6 @@ bool player::can_go_berserk(bool intentional, bool potion, bool quiet,
         msg = "You cannot go berserk while under stasis.";
     else if (!intentional && !potion && clarity())
         msg = "You're too calm and focused to rage.";
-    else if (hunger <= HUNGER_VERY_HUNGRY)
-        msg = "You're too hungry to go berserk.";
     else
         success = true;
 

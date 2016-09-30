@@ -2505,8 +2505,6 @@ static string _player_spell_stats(const spell_type spell, bool rod)
     description += spell_power_string(spell, rod);
     description += "\nRange : ";
     description += spell_range_string(spell, rod);
-    description += "\nHunger: ";
-    description += spell_hunger_string(spell, rod);
     description += "\nNoise : ";
     description += spell_noise_string(spell);
     description += "\n";

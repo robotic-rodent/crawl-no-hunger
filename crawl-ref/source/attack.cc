@@ -200,10 +200,6 @@ int attack::calc_to_hit(bool random)
                               || (weapon && is_range_weapon(*weapon)
                                          && using_weapon()));
 
-        // hunger penalty
-        if (you.hunger_state <= HS_STARVING)
-            mhit -= 3;
-
         // armour penalty
         mhit -= (attacker_armour_tohit_penalty + attacker_shield_tohit_penalty);
 
