@@ -679,14 +679,8 @@ bool can_eat(const item_def &food, bool suppress_msg, bool check_hunger)
     {
         if (player_mutation_level(MUT_HERBIVOROUS) == 3)
             FAIL("Sorry, you're a herbivore.")
-        else if (food.sub_type == FOOD_CHUNK)
+        else if (food.sub_type == FOOD_CHUNK && you.species != SP_GHOUL)
         {
-            if (!check_hunger
-                || player_likes_chunks())
-            {
-                return true;
-            }
-
             FAIL("You aren't quite hungry enough to eat that!")
         }
     }
