@@ -988,6 +988,20 @@ void handle_time()
     if (player_in_branch(BRANCH_LABYRINTH) || player_in_branch(BRANCH_ABYSS))
         forget_map(true);
 
+    // Doomsday timer. Spawns pan lords on the scummers.
+    static int doomsday_state = 0;
+    if (env.turns_on_level > 2000 && doomsday_state == 0)
+    {
+        mpr("<red>You feel a strong need to stay moving.</red>");
+        doomsday_state++;
+    }
+    else if (env.turns_on_level > 2500 && doomsday_state == 1 && one_chance_in( 100 ))
+    {
+        mpr("<red>You notice a terrible presence.</red>");
+        mgen_data mdata(MONS_PANDEMONIUM_LORD, BEH_HOSTILE, you.pos());
+        create_monster (mdata, false);
+    }
+
     // Magic contamination from spells and Orb.
     if (!crawl_state.game_is_arena())
         _handle_magic_contamination();
